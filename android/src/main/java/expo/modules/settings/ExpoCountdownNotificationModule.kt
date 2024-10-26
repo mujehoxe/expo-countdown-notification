@@ -14,12 +14,12 @@ class ExpoCountdownNotificationModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("ExpoCountdownNotification")
 
-        Function("display") { reminderTime: Long, message: String, keepAfterFor: Long? ->
+        Function("display") { eventTime: Long, title: String, keepAfterFor: Long? ->
             createNotificationChannel()
 
             val inputData = Data.Builder()
-                .putLong("reminderTime", reminderTime)
-                .putString("message", message)
+                .putLong("eventTime", eventTime)
+                .putString("title", title)
                 .putLong("keepAfterFor", keepAfterFor ?: 0L)
                 .build()
 
