@@ -12,6 +12,7 @@ import androidx.core.app.NotificationCompat
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import android.util.Log
+import android.view.View
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -33,12 +34,13 @@ class CountdownWorker(
     override fun doWork(): Result {
         val eventTime = inputData.getLong("eventTime", 0L)
         val title = inputData.getString("title") ?: ""
+        val message = inputData.getString("message") ?: ""
         val keepAfterFor = inputData.getLong("keepAfterFor", 0L)
 
         val currentTime = System.currentTimeMillis()
         val remainingTime = eventTime - currentTime
 
-        startCountdown(remainingTime, title, keepAfterFor)
+        startCountdown(remainingTime, title, message, keepAfterFor)
 
         while (!isStopped.get()) {
             Thread.sleep(1000)
@@ -47,7 +49,7 @@ class CountdownWorker(
         return Result.success()
     }
 
-    private fun startCountdown(initialRemainingTime: Long, title: String, keepAfterFor: Long) {
+    private fun startCountdown(initialRemainingTime: Long, title: String, messsage: String, keepAfterFor: Long) {
         var remainingTime = initialRemainingTime
 
         countdownJob = object : Runnable {
@@ -58,7 +60,7 @@ class CountdownWorker(
                     return
                 }
 
-                showNotification(remainingTime, title)
+                showNotification(remainingTime, title, messsage)
                 remainingTime -= 1000
                 handler.postDelayed(this, 1000)
 
@@ -73,8 +75,9 @@ class CountdownWorker(
         handler.post(countdownJob!!)
     }
 
-    private fun showNotification(remainingTime: Long, title: String) {
+    private fun showNotification(remainingTime: Long, title: String, message: String) {
         val remoteViews = RemoteViews(applicationContext.packageName, R.layout.notification_layout)
+        val expandedRemoteViews = RemoteViews(applicationContext.packageName, R.layout.notification_layout)
 
         val seconds = Math.abs(remainingTime / 1000) % 60
         val minutes = Math.abs(remainingTime / 1000) / 60
@@ -85,14 +88,20 @@ class CountdownWorker(
             String.format("In %02dm : %02ds", minutes, seconds)
         }
 
+        remoteViews.setTextViewText(R.id.title, title)
         remoteViews.setTextViewText(R.id.chronometer, timeString)
-        remoteViews.setTextViewText(R.id.reminder_message, title)
+
+        expandedRemoteViews.setTextViewText(R.id.title, title)
+        expandedRemoteViews.setTextViewText(R.id.chronometer, timeString)
+        expandedRemoteViews.setTextViewText(R.id.message, message)
+        expandedRemoteViews.setViewVisibility(R.id.message, View.VISIBLE)
 
         val stopIntent = Intent(applicationContext, NotificationActionReceiver::class.java).apply {
             action = "STOP_COUNTDOWN"
             putExtra("WORKER_ID", id.toString())
             putExtra("NOTIFICATION_ID", notificationId)
         }
+
         val stopPendingIntent = PendingIntent.getBroadcast(
             applicationContext,
             notificationId,
@@ -116,6 +125,7 @@ class CountdownWorker(
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCustomContentView(remoteViews)
+            .setCustomBigContentView(expandedRemoteViews)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setOnlyAlertOnce(true)
             .setAutoCancel(true)
